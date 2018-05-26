@@ -201,7 +201,7 @@ class LzWrapper:
             if (current is None) or (deviation < current):
                 best = var_move
                 current = deviation
-                self._log("{} looks more suitable ({}%)".format(best, current))
+                self._log("{} looks more suitable ({}%)".format(best, percent))
 
         self._log("Going to play {} ({}%)".format(best, current))
 
@@ -241,6 +241,7 @@ def main(log_f=_dumb_log):
     weights = config.get('leelaz', 'weights')
     visits = config.get('leelaz', 'visits')
     probability = float(config.get('stupidity', 'win_percent'))
+    log_f("Trying to keep winning probability at {}".format(probability))
 
     wrapper = LzWrapper(lz_binary, weights, visits, log_f)
 
