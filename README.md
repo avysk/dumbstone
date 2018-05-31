@@ -31,6 +31,7 @@ Edit `dumbstone.ini`:
 3. In `[stupidity]` section set `win_percent` to the winning probability (in percents) Dumbstone will try to maintain.
 4. In `[stupidity]` section set `max_drop_percent` to some value. Dumbstone will not consider moves which cause bigger drop in winning probability than this value, comparing with the move chosen by Leela Zero. If you want to disable this feature, just set it to some huge number. Having this value set helps against Dumbstone making really horrible moves in yose just to prevent itself from winning.
 5. In `[stupidity]` section set `pass_terminates` either to 1 or to 0. If it is set to 1, and Leela Zero considered pass as a move, Dumbstone will not play moves worse than pass.
+6. In `[stupidity]` section set `min_visits` to some number to prevent Dumbstone from considering moves with small number of visits. *Warning*: this should be much, much smaller than `visits` setting in `[leelaz]` section.
 
 If you want, you can change `visits` in `[leelaz]` section. Unlike with Leela Zero, this number will not change the playing strength; instead, higher number of visits will produce more variations for Dumbstone to choose from, so it (maybe) will be able to maintain winning probability better. In my experience, 1000 works quite well. Set to lower number if Dumbstone is too slow.
 
@@ -47,7 +48,7 @@ To set up in Sabaki, add engine in `Engines->Manage Engines...`, then configure 
 
 ## Meta
 
-Version: 0.2
+Version: 0.3
 
 Author: Alexey Vyskubov <alexey@hotmail.fi>
 

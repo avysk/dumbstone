@@ -61,7 +61,7 @@ class LzWrapper:
     """
     Wrapper for Leela Zero process.
     """
-    _VARIATION = re.compile(r" *([^ ]*) -> .*\(V: ([^%]*)%\).*$")
+    _VARIATION = re.compile(r" *([^ ]*) -> *([^ ]*) \(V: ([^%]*)%\).*$")
 
     def __init__(self, lz_binary, weights, visits, log_f):
         """
@@ -73,10 +73,13 @@ class LzWrapper:
         :param log_f: function to log messages
         """
         self._log = log_f
+        self._debug_lz = False
+
         cmd_line = [lz_binary]
         cmd_line += ['-w', weights]
         cmd_line += ['-v', visits]
         cmd_line += ['-g']
+        # pylint: disable=fixme
         cmd_line += ['-m', '30']  # FIXME: hardcoded
         self._log("Starting LZ")
         self._lz = Popen(cmd_line,
@@ -92,7 +95,11 @@ class LzWrapper:
         Write to sys.stderr everything LZ has to say on stderr, return True if
         something was outputted, False otherwise.
         """
-        return dump_to_stream(self._lz_err, sys.stderr)
+        if self._debug_lz:
+            return dump_to_stream(self._lz_err, sys.stderr)
+        else:
+            with open(os.devnull, 'w') as nowhere:
+                return dump_to_stream(self._lz_err, nowhere)
 
     def dump_stdout(self):
         """
@@ -104,7 +111,8 @@ class LzWrapper:
     def _consume_stdout_until_ready(self):
         while True:
             out = self._lz_out.get()  # blocking!
-            self._log("Consumed: {}".format(out.strip()))
+            if self._debug_lz:
+                self._log("Consumed: {}".format(out.strip()))
             if out[0:1] == '=':
                 return
 
@@ -142,6 +150,37 @@ class LzWrapper:
                 sys.stdout.write(out)
                 sys.stdout.flush()
 
+    def _read_variations(self, min_visits):
+        variations = []
+        dropped = []
+        while True:
+            line = self._lz_err.get()  # blocking
+            if self._debug_lz:
+                sys.stderr.write(line)
+                sys.stderr.flush()
+            if line[:8] == 'NN eval=':
+                # variations for expected reply start -- we're done
+                break
+            match = LzWrapper._VARIATION.match(line)
+            if match:
+                move, visits, win = match.groups()
+                if (int(visits) >= min_visits) or (move == 'pass'):
+                    # never drop pass variation
+                    variations.append((move, win))
+                else:
+                    dropped.append((move, visits))
+        dropped_line = (("{} ({})".format(*drop) for drop in dropped))
+        self._log("Dropped {} move(s) because of low visits "
+                  "{}".format(len(dropped), ' '.join(dropped_line)))
+
+        assert variations, "Didn't find any variations! " \
+                           "Is min_visits too high or visits too low?"
+
+        possible = (("{} ({}%)".format(var[0], var[1]) for var in variations))
+        self._log("Considering: {}".format(' '.join(possible)))
+
+        return variations
+
     def _most_suitable(self, variations,
                        probability, max_drop_percent, pass_terminates):
         """
@@ -165,8 +204,8 @@ class LzWrapper:
                           "not considering".format(var_move, percent))
                 continue
 
-            deviation = abs(percent - probability)
-            if (chosen_dev is None) or (deviation < chosen_dev):
+            deviation = percent - probability
+            if (chosen_dev is None) or (abs(deviation) < abs(chosen_dev)):
                 chosen = var_move
                 chosen_dev = deviation
                 self._log("{} looks more suitable "
@@ -178,9 +217,11 @@ class LzWrapper:
 
         return chosen, chosen_dev
 
+    # pylint:disable=too-many-arguments
     def genmove(self, color,
-                probability=50.0, max_drop_percent=100.0,
-                pass_terminates=False):
+                probability=50.0,
+                min_visits=0,
+                max_drop_percent=100.0, pass_terminates=False):
         """
         Generate move.
 
@@ -191,9 +232,7 @@ class LzWrapper:
         :param log_f: function to pass logging messages to
         """
         command = "genmove {}\r\n".format(color)
-        self._log("Asking LZ to {}".format(command.strip()))
         self.pass_to_lz(command)
-        self._log("Waiting for LZ")
 
         # Ask LZ for the best move
         move = self._wait_for_move()
@@ -210,34 +249,20 @@ class LzWrapper:
             return
 
         # Now wait for variations
-        self._log("Waiting for variations")
         while True:
             line = self._lz_err.get()  # blocking!
-            sys.stderr.write(line)
-            sys.stderr.flush()
+            if self._debug_lz:
+                sys.stderr.write(line)
+                sys.stderr.flush()
             if line[:8] == 'NN eval=':
                 break
 
-        self._log("Reading variations")
-        variations = []
-        while True:
-            line = self._lz_err.get()  # blocking!
-            sys.stderr.write(line)
-            sys.stderr.flush()
-            if line[:8] == 'NN eval=':
-                # variations for expected reply start -- we're done
-                break
-            match = LzWrapper._VARIATION.match(line)
-            if match:
-                variations.append(match.groups())
-
-        self._log("{} variations read, "
-                  "choosing the most suitable".format(len(variations)))
+        variations = self._read_variations(min_visits)
 
         chosen, dev = self._most_suitable(variations, probability,
                                           max_drop_percent, pass_terminates)
 
-        self._log("Going to play {} (dev: {:.2f}%)".format(chosen, dev))
+        self._log("*** Going to play {} (dev: {:.2f}%)***".format(chosen, dev))
 
         # Undo the move and play the chosen one instead
         self.pass_to_lz("undo\r\n")
@@ -264,10 +289,11 @@ def load_config():
 
 def _dumb_log(message):
     sys.stderr.write("DUMBSTONE: {}\r\n".format(message))
+    sys.stderr.flush()
 
 
 def _version(probability, max_drop_percent, pass_terminates):
-    version = "= v0.2, using Leela Zero as backend. "
+    version = "= v0.3, using Leela Zero as backend. "
     version += "This bot tries to keep its winning percentage at "
     version += "{}%. ".format(probability)
     version += "However, only the moves Leela Zero considered "
@@ -284,6 +310,8 @@ def _version(probability, max_drop_percent, pass_terminates):
     return version
 
 
+# pylint:disable=too-many-locals,fixme
+# FIXME this!
 def main(log_f=_dumb_log):
     """
     Entry point.
@@ -293,9 +321,11 @@ def main(log_f=_dumb_log):
     weights = config.get('leelaz', 'weights')
     visits = config.get('leelaz', 'visits')
     probability = float(config.get('stupidity', 'win_percent'))
+    min_visits = int(config.get('stupidity', 'min_visits'))
     max_drop_percent = float(config.get('stupidity', 'max_drop_percent'))
     pass_terminates = bool(int(config.get('stupidity', 'pass_terminates')))
     log_f("Trying to keep winning probability at {}".format(probability))
+    log_f("Dropping moves with less than {} visits".format(min_visits))
     log_f("Not playing moves with winning probability drop "
           "over {}%".format(max_drop_percent))
     log_f("Not playing moves worse than pass: {}".format(pass_terminates))
@@ -319,7 +349,7 @@ def main(log_f=_dumb_log):
             cmd = stdin_q.get_nowait()
             changed = True
             count = 0
-            log_f("Input command: {}".format(cmd))
+            log_f("Input command: {}".format(cmd.strip()))
             if cmd.strip() == 'quit':
                 wrapper.pass_to_lz("{}\r\n".format(cmd))
                 sys.exit(0)
@@ -334,11 +364,11 @@ def main(log_f=_dumb_log):
             elif cmd[:8] == "genmove ":
                 color = cmd[8]
                 wrapper.genmove(color, probability,
+                                min_visits,
                                 max_drop_percent, pass_terminates)
             else:
                 wrapper.pass_to_lz(cmd)
                 wrapper.dump_stdout_until_ready()
-                log_f("Command ok")
         except Empty:
             if not changed:
                 count += 1
