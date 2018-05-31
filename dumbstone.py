@@ -266,7 +266,7 @@ def _dumb_log(message):
     sys.stderr.write("DUMBSTONE: {}\r\n".format(message))
 
 
-def _version(probability):
+def _version(probability, max_drop_percent, pass_terminates):
     version = "= v0.2, using Leela Zero as backend. "
     version += "This bot tries to keep its winning percentage at "
     version += "{}%. ".format(probability)
@@ -275,6 +275,10 @@ def _version(probability):
     version += "yourself in a situation where it cannot not "
     version += "to win, because Leela Zero does not consider "
     version += "really bad moves at all. "
+    version += "This version will not play moves which drop winning "
+    version += "probability more than {}% per move. ".format(max_drop_percent)
+    if pass_terminates:
+        version += "This version will not play moves worse than pass. "
     version += "See https://github.com/avysk/dumbstone "
     version += "for more information.\r\n\r\n"
     return version
@@ -292,8 +296,8 @@ def main(log_f=_dumb_log):
     max_drop_percent = float(config.get('stupidity', 'max_drop_percent'))
     pass_terminates = bool(int(config.get('stupidity', 'pass_terminates')))
     log_f("Trying to keep winning probability at {}".format(probability))
-    log_f("Not playing moves worse with winnining probability drop "
-          ">{}%".format(max_drop_percent))
+    log_f("Not playing moves with winning probability drop "
+          "over {}%".format(max_drop_percent))
     log_f("Not playing moves worse than pass: {}".format(pass_terminates))
 
     wrapper = LzWrapper(lz_binary, weights, visits, log_f)
@@ -323,12 +327,14 @@ def main(log_f=_dumb_log):
                 sys.stdout.write("= Dumbstone\r\n\r\n")
                 sys.stdout.flush()
             elif cmd.strip() == 'version':
-                version = _version(probability)
+                version = _version(probability, max_drop_percent,
+                                   pass_terminates)
                 sys.stdout.write(version)
                 sys.stdout.flush()
             elif cmd[:8] == "genmove ":
                 color = cmd[8]
-                wrapper.genmove(color, probability)
+                wrapper.genmove(color, probability,
+                                max_drop_percent, pass_terminates)
             else:
                 wrapper.pass_to_lz(cmd)
                 wrapper.dump_stdout_until_ready()
