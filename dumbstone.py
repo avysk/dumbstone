@@ -142,7 +142,45 @@ class LzWrapper:
                 sys.stdout.write(out)
                 sys.stdout.flush()
 
-    def genmove(self, color, probability=50.0):
+    def _most_suitable(self, variations,
+                       probability, max_drop_percent, pass_terminates):
+        """
+        Choose most suitable move from variations.
+        """
+        top_percent = None  # win percent for move chosen by LZ
+        chosen = None  # most suitable move found
+        chosen_dev = None  # deviation of win % for the most suitable move
+
+        for var_move, percent_s in variations:
+
+            percent = float(percent_s)
+
+            # First variation is the move chosen by LZ
+            if top_percent is None:
+                top_percent = percent
+
+            # If the current move is much worse, drop it
+            if top_percent - percent > max_drop_percent:
+                self._log("{} is too bad ({}%), "
+                          "not considering".format(var_move, percent))
+                continue
+
+            deviation = abs(percent - probability)
+            if (chosen_dev is None) or (deviation < chosen_dev):
+                chosen = var_move
+                chosen_dev = deviation
+                self._log("{} looks more suitable "
+                          "({}%)".format(chosen, percent))
+
+            if var_move == 'pass' and pass_terminates:
+                self._log("Found pass, stop considering moves")
+                break
+
+        return chosen, chosen_dev
+
+    def genmove(self, color,
+                probability=50.0, max_drop_percent=100.0,
+                pass_terminates=False):
         """
         Generate move.
 
@@ -195,25 +233,20 @@ class LzWrapper:
 
         self._log("{} variations read, "
                   "choosing the most suitable".format(len(variations)))
-        best = None
-        current = None
-        for var_move, percent in variations:
-            deviation = abs(float(percent) - probability)
-            if (current is None) or (deviation < current):
-                best = var_move
-                current = deviation
-                self._log("{} looks more suitable ({}%)".format(best, percent))
 
-        self._log("Going to play {} ({}%)".format(best, current))
+        chosen, dev = self._most_suitable(variations, probability,
+                                          max_drop_percent, pass_terminates)
+
+        self._log("Going to play {} (dev: {}%)".format(chosen, dev))
 
         # Undo the move and play the chosen one instead
         self.pass_to_lz("undo\r\n")
         self._consume_stdout_until_ready()
-        self.pass_to_lz("play {} {}\r\n".format(color, best))
+        self.pass_to_lz("play {} {}\r\n".format(color, chosen))
         self._consume_stdout_until_ready()
 
         # Finally, output GTP line with the move
-        sys.stdout.write("= {}\r\n".format(best))
+        sys.stdout.write("= {}\r\n".format(chosen))
         sys.stdout.flush()
 
 
@@ -242,7 +275,12 @@ def main(log_f=_dumb_log):
     weights = config.get('leelaz', 'weights')
     visits = config.get('leelaz', 'visits')
     probability = float(config.get('stupidity', 'win_percent'))
+    max_drop_percent = float(config.get('stupidity', 'max_drop_percent'))
+    pass_terminates = bool(int(config.get('stupidity', 'pass_terminates')))
     log_f("Trying to keep winning probability at {}".format(probability))
+    log_f("Not playing moves worse with winnining probability drop "
+          ">{}%".format(max_drop_percent))
+    log_f("Not playing moves worse than pass: {}".format(pass_terminates))
 
     wrapper = LzWrapper(lz_binary, weights, visits, log_f)
 

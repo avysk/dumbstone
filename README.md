@@ -29,6 +29,8 @@ Edit `dumbstone.ini`:
 1. In `[leelaz]` section set `leelaz` to the full path to Leela Zero binary.
 2. In `[leelaz]` section set `weights` to the full path to Leela Zero weights.
 3. In `[stupidity]` section set `win_percent` to the winning probability (in percents) Dumbstone will try to maintain.
+4. In `[stupidity]` section set `max_drop_percent` to some value. Dumbstone will not consider moves which cause bigger drop in winning probability than this value, comparing with the move chosen by Leela Zero. If you want to disable this feature, just set it to some huge number. Having this value set helps against Dumbstone making really horrible moves in yose just to prevent itself from winning.
+5. In `[stupidity]` section set `pass_terminates` either to 1 or to 0. If it is set to 1, and Leela Zero considered pass as a move, Dumbstone will not play moves worse than pass.
 
 If you want, you can change `visits` in `[leelaz]` section. Unlike with Leela Zero, this number will not change the playing strength; instead, higher number of visits will produce more variations for Dumbstone to choose from, so it (maybe) will be able to maintain winning probability better. In my experience, 1000 works quite well. Set to lower number if Dumbstone is too slow.
 
