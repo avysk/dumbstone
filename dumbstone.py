@@ -237,7 +237,7 @@ class LzWrapper:
         chosen, dev = self._most_suitable(variations, probability,
                                           max_drop_percent, pass_terminates)
 
-        self._log("Going to play {} (dev: {}%)".format(chosen, dev))
+        self._log("Going to play {} (dev: {:.2f}%)".format(chosen, dev))
 
         # Undo the move and play the chosen one instead
         self.pass_to_lz("undo\r\n")
