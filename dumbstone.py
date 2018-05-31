@@ -266,6 +266,20 @@ def _dumb_log(message):
     sys.stderr.write("DUMBSTONE: {}\r\n".format(message))
 
 
+def _version(probability):
+    version = "= v0.2, using Leela Zero as backend. "
+    version += "This bot tries to keep its winning percentage at "
+    version += "{}%. ".format(probability)
+    version += "However, only the moves Leela Zero considered "
+    version += "are used, so it is entirely possible to get "
+    version += "yourself in a situation where it cannot not "
+    version += "to win, because Leela Zero does not consider "
+    version += "really bad moves at all. "
+    version += "See https://github.com/avysk/dumbstone "
+    version += "for more information.\r\n\r\n"
+    return version
+
+
 def main(log_f=_dumb_log):
     """
     Entry point.
@@ -305,6 +319,13 @@ def main(log_f=_dumb_log):
             if cmd.strip() == 'quit':
                 wrapper.pass_to_lz("{}\r\n".format(cmd))
                 sys.exit(0)
+            elif cmd.strip() == 'name':
+                sys.stdout.write("= Dumbstone\r\n\r\n")
+                sys.stdout.flush()
+            elif cmd.strip() == 'version':
+                version = _version(probability)
+                sys.stdout.write(version)
+                sys.stdout.flush()
             elif cmd[:8] == "genmove ":
                 color = cmd[8]
                 wrapper.genmove(color, probability)

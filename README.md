@@ -47,7 +47,7 @@ To set up in Sabaki, add engine in `Engines->Manage Engines...`, then configure 
 
 ## Meta
 
-Version: 0.1
+Version: 0.2
 
 Author: Alexey Vyskubov <alexey@hotmail.fi>
 
