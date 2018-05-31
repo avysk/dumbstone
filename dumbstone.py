@@ -77,6 +77,7 @@ class LzWrapper:
         cmd_line += ['-w', weights]
         cmd_line += ['-v', visits]
         cmd_line += ['-g']
+        cmd_line += ['-m', '30']  # FIXME: hardcoded
         self._log("Starting LZ")
         self._lz = Popen(cmd_line,
                          stdin=PIPE, stdout=PIPE, stderr=PIPE,
